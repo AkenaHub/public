@@ -11,6 +11,21 @@ local methodCheck = {
 local detectionMessage = 'detected lmao'
 local detectionTriggered = false
 
+function crash()
+    while true do
+        local function recc()
+            while true do
+                local co = coroutine.create(recc)
+                coroutine.resume(co)
+                task.spawn(recc)
+                task.wait()
+            end
+        end
+        recc()
+        task.wait()
+    end
+end
+
 task.spawn(function()
     while task.wait(1) do
         local function recursiveStackCheck(counter, maxCount)
@@ -130,24 +145,10 @@ task.spawn(function()
             task.spawn(function()
                 while true do
                     rconsoleinfo(detectionMessage)
-                    task.wait()
+                    task.wait(2)
+                    crash()
                 end
             end)
         end
     end
 end)
-
-local fileList = listfiles and listfiles('') or {}
-local iterate, tableValue, index = ipairs(fileList)
-local message = detectionMessage
-
-while true do
-    local fileName
-    index, fileName = iterate(tableValue, index)
-    if index == nil then
-        break
-    end
-    if string.find(fileName:lower(), 'log') then
-        return rconsoleprint(message .. 'fock u')
-    end
-end
