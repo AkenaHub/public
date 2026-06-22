@@ -26,7 +26,7 @@ local WHITE       = Color3.fromHex("#FFFFFF")
 local MUTED       = Color3.fromHex("#7A5FBB")
 local TEXT_SUB    = Color3.fromHex("#3D2866")
 
-local function loadimg(url)
+local function loadimg_old(url)
     if not (writefile and getcustomasset and (http_request or request or (syn and syn.request))) then
         warn("[Lumin]: Missing executor functions - (writefile/getcustomasset/request)")
         return nil
@@ -46,6 +46,60 @@ local function loadimg(url)
     if not write_ok then return nil end
     local asset_ok, asset_path = pcall(getcustomasset, filename)
     if not asset_ok or not asset_path then return nil end
+
+    return asset_path
+end
+
+local function loadimg(url)
+    local http = http_request or request or (syn and syn.request)
+    if not (writefile and getcustomasset and http) then
+        warn("[Lumin]: Missing executor functions (writefile/getcustomasset/http_request)")
+        return nil
+    end
+
+    local ok, res = pcall(http, { Url = url, Method = "GET" })
+    if not ok or not res or not res.Body then return nil end
+    local data = res.Body
+    local data_len = #data
+
+    local function simple_hash(str)
+        local h = 0
+        local step = math.max(1, math.floor(#str / 256))  -- sample to speed up
+        for i = 1, #str, step do
+            h = (h * 31 + string.byte(str, i)) % 0xFFFFFFFF
+        end
+        return string.format("%08x", h)
+    end
+
+    local hash = simple_hash(data) .. "_" .. tostring(data_len)
+    local folder_path = "ethos/images/"
+    if makefolder then
+        pcall(makefolder, "ethos")
+        pcall(makefolder, folder_path)
+    end
+
+    local filename = folder_path .. hash .. ".png"
+    local exists = false
+    if isfile then
+        exists = isfile(filename)
+    else
+        local ok, path = pcall(getcustomasset, filename)
+        exists = ok and path ~= nil
+    end
+
+    if not exists then
+        local write_ok = pcall(writefile, filename, data)
+        if not write_ok then
+            warn("[Lumin]: Failed to write image to file:", filename)
+            return nil
+        end
+    end
+
+    local asset_ok, asset_path = pcall(getcustomasset, filename)
+    if not asset_ok or not asset_path then
+        warn("[Lumin]: Failed to get custom asset for:", filename)
+        return nil
+    end
 
     return asset_path
 end
@@ -87,18 +141,6 @@ end
 
 local FALLBACK_ICON = "rbxassetid://7072706620"
 
-local function resolveImage(logo)
-	if type(logo) ~= "string" then return FALLBACK_ICON end
-	if logo:sub(1, 14) == "rbxassetid://" then
-		return logo
-	end
-
-    warn("[LoadingScreen] External URLs are not supported by Roblox ImageLabels. " ..
-		"Please upload your image as a Decal/Image on Roblox and use its rbxassetid://. " ..
-		"Using fallback icon.")
-	return FALLBACK_ICON
-end
-
 local function buildLoadPlan(names, stallTime)
 	local count  = #names
 	local plan   = {}
@@ -129,7 +171,7 @@ end
 
 local function LoadingScreen(title, logo, stallTime)
 	if #CollectionService:GetTagged(TAG) > 0 then
-		warn("[LoadingScreen] Already active.")
+		warn("[Lumin]: Already active.")
 		return
 	end
 
